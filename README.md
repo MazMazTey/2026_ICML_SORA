@@ -50,13 +50,15 @@ python main.py \\
 If you use this code in your own work, please cite our paper:
 ```
 @inproceedings{
-    anonymous2026sora,
-    title={SORA:Free Second Order Attacks in Fast Adversarial Training},
-    author={Anonymous},
-    booktitle={Submitted to The Fourty Third International Conference on Machine Learning},
+    teymourian2026sora,
+    title={SORA: Free Second Order Attacks in Fast Adversarial Training},
+    author={Teymourian, Mazdak and Moslemi, Ramtin and Rahmani, Farzan and Rohban, Mohammad Hossein},
+    booktitle={Proceedings of the 43rd International Conference on Machine Learning},
+    publisher={PMLR},
     year={2026},
+    doi={},  % <-- Replace with actual DOI
     url={},
-    note={under review}
+    note={accepted}
 }
 ```
 
