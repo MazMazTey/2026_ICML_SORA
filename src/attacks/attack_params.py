@@ -5,8 +5,6 @@ def get_attack_params(args):
             q_val = 0.35
         case "CIFAR100":
             q_val = 0.45
-        case "SVHN":
-            q_val = 0.7
         case _:
             q_val = 0.45
     
@@ -16,11 +14,26 @@ def get_attack_params(args):
             "max_alpha": 2 * args.epsilon,
             "method": "Second Order Theory Sign"
         },
+        "Benign": {
+            "epsilon": 0,
+            "alpha": 0
+        },
         "FGSM": {
             "epsilon": args.epsilon,
-            "alpha": 2 * args.epsilon
+            "alpha": args.epsilon,
+            "norm": args.attack_norm # Linf or L2
+        },
+        "FGM": {
+            "epsilon": args.epsilon,
+            "alpha": args.epsilon,
+            "norm": args.attack_norm # Linf or L2
         },
         "FGSM-RS": {
+            "epsilon": args.epsilon,
+            "alpha": 1.25 * args.epsilon,
+            "k": 1.0
+        },
+        "FGM-RS": {
             "epsilon": args.epsilon,
             "alpha": 1.25 * args.epsilon,
             "k": 1.0
@@ -48,7 +61,16 @@ def get_attack_params(args):
         "PGD": {
             "epsilon": args.epsilon,
             "alpha": args.epsilon / 4,
+            "norm": args.attack_norm, # Linf or L2
             "attack_iters": 10,
+            "k": 1.0,
+            "clip": True
+        },
+        "PGD2": {
+            "epsilon": args.epsilon,
+            "alpha": args.epsilon / 2,
+            "norm": args.attack_norm, # Linf or L2
+            "attack_iters": 2,
             "k": 1.0,
             "clip": True
         },
@@ -72,6 +94,13 @@ def get_attack_params(args):
             "alpha": args.epsilon,
             "k": 2.0,
             "clip": False
+        },
+        "NuAT": {
+            "epsilon": args.epsilon,
+            "alpha": args.epsilon,
+            "k": 0.5,
+            "steps": 1,
+            "nuc_reg": 4
         },
         "ATAS": {
             "epsilon": args.epsilon,
@@ -107,5 +136,8 @@ def get_regularizer_params(args):
             "lambda1": 1.0,
             "lambda2": 1.5,
             "lambda3": 0.15,
+        },
+        "NuAT": {
+            "reg": 4.0 # Lambda NuAT
         },
     }
