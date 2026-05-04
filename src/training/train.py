@@ -91,8 +91,6 @@ def train(args, device):
                         attack_params["linearity_coef"] = (1 - theta) * attack_params["linearity_coef"] + theta * linearity_coef
 
                     delta, grad, alpha = attack(model, images, labels, upper_limit, lower_limit, mu, std, **attack_params)
-                case "SORAN":
-                    delta, grad, alpha = attack(model, images, labels, upper_limit, lower_limit, mu, std, **attack_params)
                 case "AAER":
                     delta, grad, clean_logit, loss_before = attack(model, images, labels, upper_limit, lower_limit, mu, std, **attack_params)
                 case "ATAS":
