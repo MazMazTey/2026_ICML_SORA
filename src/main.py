@@ -1,9 +1,8 @@
 from training.train import train
 from evaluation.evaluation import evaluate
 from evaluation.epsilons import test
-from Visualization.visualize import visualize
+from visualization.visualize import visualize
 from utils import create_directories, get_device, set_seed
-from hf_uploader import upload_to_hf
 import argparse
 
 def parse_args():
