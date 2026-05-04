@@ -6,6 +6,9 @@
 
 Official implementation of SORA: Free Second Order Attacks in Fast Adversarial Training (ICML 2026).
 
+**Code maintainers:**  
+[Mazdak Teymourian](https://github.com/MazMazTey) · [Ramtin Moslemi](https://github.com/RamtinMoslemi)
+
 
 ## Abstract
 Adversarial Training (AT) is a leading defense against adversarial examples but often suffers from *Catastrophic Overfitting* (CO) in efficient single-step variants, where robustness to multi-step attacks collapses despite high single-step performance.  
@@ -56,7 +59,7 @@ If you use this code in your own work, please cite our paper:
     booktitle={Proceedings of the 43rd International Conference on Machine Learning},
     publisher={PMLR},
     year={2026},
-    doi={},  % <-- Replace with actual DOI
+    doi={},
     url={},
     note={accepted}
 }
