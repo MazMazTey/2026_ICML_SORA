@@ -14,8 +14,9 @@ Official implementation of SORA: Free Second Order Attacks in Fast Adversarial T
 Adversarial Training (AT) is a leading defense against adversarial examples but often suffers from *Catastrophic Overfitting* (CO) in efficient single-step variants, where robustness to multi-step attacks collapses despite high single-step performance.  
 
 We address this failure mode with two contributions.  
-1. We identify *Epsilon Overfitting* (EO), a previously overlooked phenomenon in which fixed perturbation magnitudes exacerbate CO, and show that introducing perturbation variability significantly improves generalization.  
-2. We propose **PertAlign**, a theoretically grounded, computationally negligible metric that predicts CO onset by measuring gradient alignment across attack stages.  
+1. We identify *Epsilon Overfitting* (EO), a previously overlooked phenomenon in which fixed perturbation magnitudes exacerbate CO, and show that introducing perturbation variability significantly improves robust
+generalization across different architectures and datasets.  
+2. We propose **PertAlign** (Perturbation Alignment), a theoretically grounded, computationally negligible metric that predicts CO onset by measuring gradient alignment across attack stages.  
 
 Leveraging these insights, we introduce **SORA**, an adaptive step-size adversarial training method that dynamically adjusts perturbations based on loss-surface geometry. SORA consistently prevents CO, achieves state-of-the-art robustness and clean accuracy, and generalizes across datasets and architectures using a single fixed set of hyperparameters.  
 
