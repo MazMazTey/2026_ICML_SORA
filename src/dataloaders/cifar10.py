@@ -1,102 +1,128 @@
 import torch
-import numpy as np
-import random
-import os
-from pathlib import Path
-from architectures.get_model import get_model
-from training.utils import get_optimizer, get_scheduler
+from torch.utils.data import DataLoader
+from torchvision.datasets import CIFAR10
+import torchvision.transforms as transforms
+from dataloaders.index_dataset import IndexDataset
 
-def set_seed(seed: int):
+def get_loaders(args, index_dataset: bool, device):
     """
-    Seed setting for result reproducibility. 
-    Set the random seed for python, numpy, torch (cpu and cuda).
-    
+    Prepare CIFAR-10 dataset loaders with optional index annotation and normalization.
+
+    This helper handles:
+        - Dataset mean/std normalization (optional)
+        - Choice between standard augmentation (random crop + flip) or deterministic
+          padding for index-aware datasets
+        - Creation of train/test DataLoaders with specified batch size and workers
+        - Computation of normalized upper/lower pixel bounds for adversarial constraints
+
     Args:
-        seed (int): Seed for the random number generator.
-    """
-    random.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+        args (argparse.Namespace): Contains dataset, root_path, batch_size, num_workers,
+            normalize_dataset, and other configuration options.
+        index_dataset (bool): If True, wraps the training set with IndexDataset to return
+            (sample, label, index) tuples for index tracking in training/evaluation.
+        device (str): Device on which normalization boundary tensors will be stored
+            (e.g., "cuda").
 
-    print(f"Seed set to {seed} for random, numpy, and torch (CPU & CUDA).")
+    Returns:
+        tuple:
+            trainloader (DataLoader): Augmented CIFAR-10 training loader.
+            testloader (DataLoader): Normalized CIFAR-10 test loader.
+            upper_limit (torch.Tensor): Per-channel perturbed pixel max bound (normalized).
+            lower_limit (torch.Tensor): Per-channel perturbed pixel min bound (normalized).
+            mu (torch.Tensor): Dataset channel means (C×1×1, to match input shape).
+            std (torch.Tensor): Dataset channel standard deviations (C×1×1).
+            classes (tuple[str]): Class name tuple (length 10 for CIFAR-10).
+            num_classes (int): Number of classes (10 for CIFAR-10).
+            len_trainset (int): Number of training samples (50,000 for CIFAR-10).
+            len_testset (int): Number of test samples (10,000 for CIFAR-10).
 
-def create_directories(args):
+    References:
+        Krizhevsky, A. (2009). *Learning Multiple Layers of Features from Tiny Images*.
+        Technical Report, University of Toronto.
+        URL: https://www.cs.toronto.edu/~kriz/cifar.html
     """
-    Create necessary directories for the project.
+    if args.normalize_dataset:
+        cifar10_mean = [0.4914, 0.4822, 0.4465] # equals np.mean(train_set.train_data, axis=(0,1,2))/255
+        cifar10_std = [0.2471, 0.2435, 0.2616] # equals np.std(train_set.train_data, axis=(0,1,2))/255
+    else:
+        cifar10_mean = [0., 0., 0.]
+        cifar10_std = [1., 1., 1.]
+
     
-    Args:
-        root_path (str): Path to the root directory of the project.
-    """
-    Path(f'{args.root_path}').mkdir(parents=True, exist_ok=True)
-    Path(f'{args.root_path}/Datasets/{args.dataset}').mkdir(parents=True, exist_ok=True)
-    Path(f'{args.root_path}/Results/{args.dataset}').mkdir(parents=True, exist_ok=True)
-    Path(f'{args.root_path}/Results/{args.dataset}/{args.model}').mkdir(parents=True, exist_ok=True)
-    Path(f'{args.root_path}/Results/{args.dataset}/{args.model}/{args.attack}').mkdir(parents=True, exist_ok=True)
-    Path(f'{args.root_path}/Results/{args.dataset}/{args.model}/{args.attack}/raw_results_{args.seed}').mkdir(parents=True, exist_ok=True)
-    Path(f'{args.root_path}/Results/{args.dataset}/{args.model}/{args.attack}/plots_{args.seed}').mkdir(parents=True, exist_ok=True)
-    Path(f'{args.root_path}/Results/{args.dataset}/{args.model}/{args.attack}/checkpoints_{args.seed}').mkdir(parents=True, exist_ok=True)
-    Path(f'{args.root_path}/Results/{args.dataset}/{args.model}/{args.attack}/final_checkpoints_{args.seed}').mkdir(parents=True, exist_ok=True)
-    # Path(f'{args.root_path}/{args.dataset}/data').mkdir(parents=True, exist_ok=True)
+    if args.model == "ViT":
+        imagenet_mean = [0.485, 0.456, 0.406]
+        imagenet_std  = [0.229, 0.224, 0.225]
+        train_transform = transforms.Compose([
+            transforms.Resize(256),                # upscale 32->256 first
+            transforms.RandomResizedCrop(224),     # better augmentation for ViT
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(imagenet_mean, imagenet_std),
+        ])
+        test_transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(imagenet_mean, imagenet_std),
+        ])
+        mu = torch.tensor(imagenet_mean).view(3,1,1).to(device)
+        std = torch.tensor(imagenet_std).view(3,1,1).to(device)
+    elif args.model == "ViTCIFAR10":
+        vitcifar10_mean = [0.485, 0.456, 0.406]
+        vitcifar10_std  = [0.229, 0.224, 0.225]
+        train_transform = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandAugment(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
+        test_transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
+        mu = torch.tensor(vitcifar10_mean).view(3,1,1).to(device)
+        std = torch.tensor(vitcifar10_std).view(3,1,1).to(device)
+    else:
+        # Original behavior for CNN-based models
+        if index_dataset:
+            train_transform = transforms.Compose([
+                transforms.Pad(padding=4),
+                transforms.ToTensor(),
+                transforms.Normalize(cifar10_mean, cifar10_std),
+            ])
+        else:
+            train_transform = transforms.Compose([
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize(cifar10_mean, cifar10_std),
+            ])
 
-def get_device(device_name):
-    """
-    Get the device to use for the training.
+        test_transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(cifar10_mean, cifar10_std),
+        ])
+        mu = torch.tensor(cifar10_mean).view(3,1,1).to(device)
+        std = torch.tensor(cifar10_std).view(3,1,1).to(device)
     
-    Args:
-        device_name (str): Name of the device to use.
-    """
-    match device_name:
-        case "cuda":
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            print(f"Running on {torch.cuda.get_device_name(0)}")
-        case "cpu":
-            device = torch.device('cpu')
-            print(f"Running on CPU")
-        case _:
-            raise ValueError("Invalid Device!")
-    return device
 
-def save_checkpoint(model, optimizer, scheduler, path:str):
-    """
-    Save the model checkpoint.
-    
-    Args:
-        model (torch.nn.Module): Model to save.
-        optimizer (torch.optim.Optimizer): Optimizer to save.
-        scheduler (torch.optim.lr_scheduler._LRScheduler): Scheduler to save.
-        path (str): Path to save the checkpoint.
-    """
-    torch.save({"model_state_dict": model.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "scheduler_state_dict": scheduler.state_dict() if scheduler is not None else None
-                   }, path)
+    # Download the dataset
+    trainset = CIFAR10(root=f'{args.root_path}/Datasets/{args.dataset}', train=True, download=True, transform=train_transform)
+    trainset = IndexDataset(trainset) if index_dataset else trainset # Index Dataset
 
-def load_checkpoint(args, path:str, num_classes:int, image_size:int, num_channels:int, len_trainloader, device):
-    """
-    Load the model checkpoint.
-    
-    Args:
-        args (argparse.Namespace): Arguments for the training.
-        path (str): Path to load the checkpoint.
-        num_classes (int): Number of classes in the dataset.
-        len_trainloader (int): Length of the training data loader.
-        device (torch.device): Device to use for the training.
-    """
-    model = get_model(args.model, num_classes, image_size, num_channels)
-    model.to(device)
-    
-    optimizer = get_optimizer(args, model)
-    scheduler = get_scheduler(args, optimizer, len_trainloader)
+    testset = CIFAR10(root=f'{args.root_path}/Datasets/{args.dataset}', train=False, download=True, transform=test_transform)
 
-    checkpoint = torch.load(path, weights_only=True)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    if scheduler is not None:
-        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+    # Create the loaders
+    trainloader = DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    testloader = DataLoader(testset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
-    return model, optimizer, scheduler
+    # Legal limits of pixles after normalization
+    upper_limit = ((1 - mu)/ std).to(device)
+    lower_limit = ((0 - mu)/ std).to(device)
+
+    # Name of Classes
+    classes = ('plane', 'car', 'bird', 'cat',
+               'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+
+    return trainloader, testloader, upper_limit, lower_limit, mu, std, classes, len(classes), len(trainset), len(testset)
